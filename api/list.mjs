@@ -13,8 +13,20 @@ export default async function handler(req, res) {
       headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
     });
     clearTimeout(t);
-    if (resp.status !== 200) return res.status(404).json({ error: 'Mailbox not found' });
-    return res.status(200).json(await resp.json());
+
+    // 404 = mailbox belum menerima email apa pun -> inbox kosong, bukan error
+    if (resp.status === 404) return res.status(200).json({ mailbox, messages: [] });
+
+    if (resp.status !== 200) {
+      return res.status(502).json({ error: 'Upstream error', upstreamStatus: resp.status });
+    }
+
+    const text = await resp.text();
+    try {
+      return res.status(200).json(JSON.parse(text));
+    } catch {
+      return res.status(502).json({ error: 'Upstream returned non-JSON', preview: text.slice(0, 200) });
+    }
   } catch (err) {
     return res.status(502).json({ error: 'Upstream error', detail: String((err && err.message) || err) });
   }
